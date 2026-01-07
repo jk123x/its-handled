@@ -1,66 +1,49 @@
-import Link from "next/link";
-
-// Mock data for now
-const mockItems = [
-  {
-    id: "1",
-    title: "Book Week Parade",
-    event_date: "2024-08-15",
-    event_time: "09:00",
-    action_required: "Dress up as favourite book character",
-    cost: null,
-    status: "pending",
-    school_name: "Sunrise Primary",
-  },
-  {
-    id: "2",
-    title: "Athletics Carnival",
-    event_date: "2024-08-22",
-    event_time: "08:30",
-    action_required: "Wear house colours, pack lunch and water",
-    cost: null,
-    status: "pending",
-    school_name: "Sunrise Primary",
-  },
-  {
-    id: "3",
-    title: "Excursion - Science Museum",
-    event_date: "2024-08-28",
-    event_time: null,
-    action_required: "Return permission slip, pack lunch",
-    cost: 15,
-    status: "added_to_calendar",
-    school_name: "Sunrise Primary",
-  },
-];
+import Link from "next/link"
+import { redirect } from "next/navigation"
+import { createServerSupabaseClient } from "@/lib/supabase-server"
+import { Item } from "@/lib/types"
+import { SignOutButton } from "./sign-out-button"
 
 function formatDate(dateStr: string) {
-  const date = new Date(dateStr);
+  const date = new Date(dateStr)
   return date.toLocaleDateString("en-AU", {
     weekday: "short",
     day: "numeric",
     month: "short",
-  });
+  })
 }
 
-export default function Dashboard() {
-  const pendingItems = mockItems.filter((i) => i.status === "pending");
-  const doneItems = mockItems.filter((i) => i.status === "added_to_calendar");
+export default async function Dashboard() {
+  const supabase = await createServerSupabaseClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect("/login")
+  }
+
+  const { data: items } = await supabase
+    .from("items")
+    .select(`
+      *,
+      children (name, school_name)
+    `)
+    .order("event_date", { ascending: true })
+
+  const allItems = (items || []) as (Item & { children: { name: string; school_name: string | null } | null })[]
+  const pendingItems = allItems.filter((i) => i.status === "pending")
+  const doneItems = allItems.filter((i) => i.status === "added_to_calendar")
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
       <header className="px-6 md:px-12 lg:px-24 py-6 flex justify-between items-center max-w-5xl mx-auto">
         <Link href="/" className="font-bold text-xl">
           handled.
         </Link>
-        <button className="text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
-          Sign out
-        </button>
+        <SignOutButton />
       </header>
 
       <main className="px-6 md:px-12 lg:px-24 py-12 max-w-5xl mx-auto">
-        {/* Upload area */}
         <div className="mb-16">
           <div className="border-2 border-dashed border-[var(--foreground)]/20 rounded-2xl p-8 md:p-12 text-center hover:border-[var(--accent)] transition-colors cursor-pointer">
             <p className="text-lg md:text-xl font-medium mb-2">
@@ -75,7 +58,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Pending items */}
         {pendingItems.length > 0 && (
           <section className="mb-16">
             <h2 className="text-2xl md:text-3xl font-bold mb-8">
@@ -100,21 +82,27 @@ export default function Dashboard() {
                         </span>
                       )}
                     </div>
-                    <p className="text-[var(--muted)]">{item.action_required}</p>
-                    <p className="text-sm text-[var(--muted)]">
-                      {item.school_name}
-                    </p>
+                    {item.action_required && (
+                      <p className="text-[var(--muted)]">{item.action_required}</p>
+                    )}
+                    {item.children?.school_name && (
+                      <p className="text-sm text-[var(--muted)]">
+                        {item.children.name && `${item.children.name} · `}{item.children.school_name}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="font-semibold">{formatDate(item.event_date)}</p>
-                      {item.event_time && (
-                        <p className="text-sm text-[var(--muted)]">
-                          {item.event_time}
-                        </p>
-                      )}
-                    </div>
+                    {item.event_date && (
+                      <div className="text-right">
+                        <p className="font-semibold">{formatDate(item.event_date)}</p>
+                        {item.event_time && (
+                          <p className="text-sm text-[var(--muted)]">
+                            {item.event_time}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     <button className="bg-[var(--foreground)] text-[var(--background)] px-6 py-3 rounded-full font-medium hover:opacity-90 transition-opacity whitespace-nowrap">
                       Add to calendar
@@ -126,7 +114,6 @@ export default function Dashboard() {
           </section>
         )}
 
-        {/* Done items */}
         {doneItems.length > 0 && (
           <section>
             <h2 className="text-2xl md:text-3xl font-bold mb-8 text-[var(--muted)]">
@@ -147,24 +134,27 @@ export default function Dashboard() {
                         {item.title}
                       </h3>
                     </div>
-                    <p className="text-[var(--muted)] opacity-70">
-                      {item.action_required}
-                    </p>
+                    {item.action_required && (
+                      <p className="text-[var(--muted)] opacity-70">
+                        {item.action_required}
+                      </p>
+                    )}
                   </div>
 
-                  <div className="text-right">
-                    <p className="font-semibold text-[var(--muted)]">
-                      {formatDate(item.event_date)}
-                    </p>
-                  </div>
+                  {item.event_date && (
+                    <div className="text-right">
+                      <p className="font-semibold text-[var(--muted)]">
+                        {formatDate(item.event_date)}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           </section>
         )}
 
-        {/* Empty state */}
-        {mockItems.length === 0 && (
+        {allItems.length === 0 && (
           <div className="text-center py-24">
             <p className="text-2xl font-semibold mb-4">Nothing here yet</p>
             <p className="text-[var(--muted)] text-lg">
@@ -178,5 +168,5 @@ export default function Dashboard() {
         )}
       </main>
     </div>
-  );
+  )
 }
