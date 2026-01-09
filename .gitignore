@@ -43,3 +43,8 @@ next-env.d.ts
 
 # claude code
 .claude/
+
+# claude config
+CLAUDE.md
+claude.md
+.claude/
